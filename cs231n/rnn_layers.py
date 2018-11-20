@@ -256,7 +256,15 @@ def lstm_step_forward(x, prev_h, prev_c, Wx, Wh, b):
   # TODO: Implement the forward pass for a single timestep of an LSTM.        #
   # You may want to use the numerically stable sigmoid implementation above.  #
   #############################################################################
-  pass
+  a = x.dot(Wx) + prev_h.dot(Wh) + b #size N * 4H
+  alist = np.split(a, 4, axis=1)
+  i = sigmoid(alist[0])
+  f = sigmoid(alist[1])
+  o = sigmoid(alist[2])
+  g = np.tanh(alist[3])
+  next_c = f * prev_c + i * g
+  next_h = o * np.tanh(next_c)
+  cache = Wh, Wx, x, prev_h, prev_c, i, f, o, g, next_c
   ##############################################################################
   #                               END OF YOUR CODE                             #
   ##############################################################################
@@ -281,14 +289,30 @@ def lstm_step_backward(dnext_h, dnext_c, cache):
   - dWh: Gradient of hidden-to-hidden weights, of shape (H, 4H)
   - db: Gradient of biases, of shape (4H,)
   """
-  dx, dh, dc, dWx, dWh, db = None, None, None, None, None, None
+  dx, dprev_h, dprev_c, dWx, dWh, db = None, None, None, None, None, None
   #############################################################################
   # TODO: Implement the backward pass for a single timestep of an LSTM.       #
   #                                                                           #
   # HINT: For sigmoid and tanh you can compute local derivatives in terms of  #
   # the output value from the nonlinearity.                                   #
   #############################################################################
-  pass
+  Wh, Wx, x, prev_h, prev_c, i, f, o, g, next_c = cache
+  do = np.tanh(next_c) * dnext_h
+  dnext_h_next_c = o * (1 - np.power(np.tanh(next_c), 2))
+  df = dnext_c * prev_c + dnext_h * dnext_h_next_c * prev_c
+  dprev_c = dnext_h * dnext_h_next_c * f + dnext_c * f
+  di = dnext_c * g + dnext_h * dnext_h_next_c * g
+  dg = dnext_c * i + dnext_h * dnext_h_next_c * i
+  dalist_0 = di * i * (1 - i)
+  dalist_1 = df * f * (1 - f)
+  dalist_2 = do * o * (1 - o)
+  dalist_3 = dg * (1 - g * g)
+  da = np.concatenate((dalist_0, dalist_1, dalist_2, dalist_3), axis=1)
+  dprev_h = da.dot(Wh.T)
+  dWh = prev_h.T.dot(da)
+  dx = da.dot(Wx.T)
+  dWx = x.T.dot(da)
+  db = np.sum(da, axis=0)
   ##############################################################################
   #                               END OF YOUR CODE                             #
   ##############################################################################
